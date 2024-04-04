@@ -33,6 +33,8 @@ project(tritonbackend LANGUAGES C CXX)
 #
 option(TRITON_ENABLE_GPU "Enable GPU support in backend utilities" ON)
 option(TRITON_ENABLE_MALI_GPU "Enable Arm MALI GPU support in backend utilities" OFF)
+option(TRITON_ENABLE_ROCM "Enable AMD GPU support in backend utilities" OFF)
+option(TRITON_ENABLE_MIGRAPHX "Enable AMD GPU support with MIGraphX in backend utilities" OFF)
 option(TRITON_ENABLE_STATS "Include statistics collections in backend utilities" ON)
 # Default OFF unless backend explicitly request to use provided implementation
 option(TRITON_ENABLE_MEMORY_TRACKER "Include device memory tracker in backend utilities" OFF)
@@ -42,7 +44,7 @@ set(TRITON_CORE_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/co
 
 # Brian
 if(TRITON_ENABLE_ROCM OR TRITON_ENABLE_MIGRAPHX)
-  set(TRITON_ENABLE_GPU ON)
+  include_directories(/opt/rocm/include)
 endif()
 
 #
@@ -72,7 +74,8 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
   repo-core
-  GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/core.git
+  # GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/core.git
+  GIT_REPOSITORY https://github.com/gyulaz-htec/core.git
   GIT_TAG ${TRITON_CORE_REPO_TAG}
   GIT_SHALLOW ON
 )
@@ -186,6 +189,14 @@ target_compile_definitions(
   PUBLIC TRITON_ENABLE_MALI_GPU=1
 )
 endif() # TRITON_ENABLE_MALI_GPU
+
+# TRITON_ENABLE_ROCM exposed in header so set PUBLIC
+if(${TRITON_ENABLE_ROCM})
+target_compile_definitions(
+  triton-backend-utils
+  PUBLIC TRITON_ENABLE_ROCM=1
+)
+endif() # TRITON_ENABLE_ROCM
 
 # TRITON_ENABLE_STATS exposed in header so set PUBLIC
 if(${TRITON_ENABLE_STATS})
