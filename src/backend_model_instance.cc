@@ -83,6 +83,21 @@ BackendModelInstance::BackendModelInstance(
       break;
     }
     case TRITONSERVER_INSTANCEGROUPKIND_GPU: {
+#if defined(TRITON_ENABLE_GPU)
+    LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string("*** TRITON_ENABLE_GPU ON").c_str()));
+
+#if defined(TRITON_ENABLE_MIGRAPHX)
+    LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string("*** TRITON_ENABLE_MIGRAPHX ON").c_str()));
+
+#if defined(TRITON_ENABLE_ROCM)
+    LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string("*** TRITON_ENABLE_ROCM ON").c_str()));
+
 #if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
       cudaDeviceProp cuprops;
       cudaError_t cuerr = cudaGetDeviceProperties(&cuprops, device_id_);
@@ -111,7 +126,7 @@ BackendModelInstance::BackendModelInstance(
               .c_str());
 #elif !defined(TRITON_ENABLE_MALI_GPU)
       throw BackendModelInstanceException(TRITONSERVER_ErrorNew(
-          TRITONSERVER_ERROR_INTERNAL, "GPU instances not supported"));
+          TRITONSERVER_ERROR_INTERNAL, "*** GPU instances not supported"));
 #endif  // TRITON_ENABLE_GPU
       break;
     }

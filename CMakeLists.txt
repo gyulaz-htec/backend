@@ -33,6 +33,8 @@ project(tritonbackend LANGUAGES C CXX)
 #
 option(TRITON_ENABLE_GPU "Enable GPU support in backend utilities" ON)
 option(TRITON_ENABLE_MALI_GPU "Enable Arm MALI GPU support in backend utilities" OFF)
+option(TRITON_ENABLE_ROCM "Enable AMD GPU support in backend utilities" OFF)
+option(TRITON_ENABLE_MIGRAPHX "Enable AMD GPU support with MIGraphX in backend utilities" OFF)
 option(TRITON_ENABLE_STATS "Include statistics collections in backend utilities" ON)
 # Default OFF unless backend explicitly request to use provided implementation
 option(TRITON_ENABLE_MEMORY_TRACKER "Include device memory tracker in backend utilities" OFF)
