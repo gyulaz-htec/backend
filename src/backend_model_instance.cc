@@ -83,7 +83,7 @@ BackendModelInstance::BackendModelInstance(
       break;
     }
     case TRITONSERVER_INSTANCEGROUPKIND_GPU: {
-#if defined(TRITON_ENABLE_GPU || TRITON_ENABLE_MIGRAPHX || TRITON_ENABLE_ROCM)
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
       cudaDeviceProp cuprops;
       cudaError_t cuerr = cudaGetDeviceProperties(&cuprops, device_id_);
       if (cuerr != cudaSuccess) {
