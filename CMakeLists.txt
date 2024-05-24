@@ -72,7 +72,8 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
   repo-core
-  GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/core.git
+  # GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/core.git
+  GIT_REPOSITORY https://github.com/gyulaz-htec/core.git
   GIT_TAG ${TRITON_CORE_REPO_TAG}
   GIT_SHALLOW ON
 )
