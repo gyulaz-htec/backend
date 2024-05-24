@@ -87,16 +87,19 @@ BackendModelInstance::BackendModelInstance(
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_GPU ON").c_str()));
+#endif
 
 #if defined(TRITON_ENABLE_MIGRAPHX)
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_MIGRAPHX ON").c_str()));
+#endif
 
 #if defined(TRITON_ENABLE_ROCM)
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_ROCM ON").c_str()));
+#endif
 
 #if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
       cudaDeviceProp cuprops;
