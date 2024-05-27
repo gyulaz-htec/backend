@@ -42,14 +42,34 @@ BackendModelInstance::BackendModelInstance(
     : backend_model_(backend_model),
       triton_model_instance_(triton_model_instance)
 {
+  LOG_MESSAGE(
+      TRITONSERVER_LOG_INFO,
+      (std::string("++++++++ "
+                   "BackendModelInstance::BackendModelInstance"))
+          .c_str());
   const char* instance_name;
+  LOG_MESSAGE(
+      TRITONSERVER_LOG_INFO,
+      (std::string("++++++++ "
+                   "BackendModelInstance::TRITONBACKEND_ModelInstanceName"))
+          .c_str());
   THROW_IF_BACKEND_INSTANCE_ERROR(
       TRITONBACKEND_ModelInstanceName(triton_model_instance, &instance_name));
   name_ = instance_name;
 
+  LOG_MESSAGE(
+      TRITONSERVER_LOG_INFO,
+      (std::string("++++++++ "
+                   "BackendModelInstance::TRITONBACKEND_ModelInstanceKind"))
+          .c_str());
   THROW_IF_BACKEND_INSTANCE_ERROR(
       TRITONBACKEND_ModelInstanceKind(triton_model_instance, &kind_));
 
+  LOG_MESSAGE(
+      TRITONSERVER_LOG_INFO,
+      (std::string("++++++++ "
+                   "BackendModelInstance::TRITONBACKEND_ModelInstanceDeviceId"))
+          .c_str());
   THROW_IF_BACKEND_INSTANCE_ERROR(
       TRITONBACKEND_ModelInstanceDeviceId(triton_model_instance, &device_id_));
 
@@ -87,18 +107,20 @@ BackendModelInstance::BackendModelInstance(
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_GPU ON").c_str()));
-#endif
 
-#if defined(TRITON_ENABLE_MIGRAPHX)
+#elif defined(TRITON_ENABLE_MIGRAPHX)
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_MIGRAPHX ON").c_str()));
-#endif
 
-#if defined(TRITON_ENABLE_ROCM)
+#elif defined(TRITON_ENABLE_ROCM)
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("*** TRITON_ENABLE_ROCM ON").c_str()));
+#else
+      LOG_MESSAGE(
+          TRITONSERVER_LOG_INFO,
+          (std::string("*** NO VISIBLE GPU FLAGS").c_str()));
 #endif
 
 #if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
