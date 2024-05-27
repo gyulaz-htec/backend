@@ -80,7 +80,7 @@ bufferRequested(uint8_t** buffer, size_t* size, size_t* maxNumRecords)
 
 void
 bufferCompleted(
-    CUcontext ctx, uint32_t streamId, uint8_t* buffer, size_t size,
+    hipCtx_t ctx, uint32_t streamId, uint8_t* buffer, size_t size,
     size_t validSize)
 {
   CUptiResult status;
@@ -114,12 +114,12 @@ bufferCompleted(
 
 DeviceMemoryTracker::DeviceMemoryTracker()
 {
-  cudaError_t cuerr = cudaGetDeviceCount(&device_cnt_);
-  if ((cuerr == cudaErrorNoDevice) || (cuerr == cudaErrorInsufficientDriver)) {
+  hipError_t cuerr = hipGetDeviceCount(&device_cnt_);
+  if ((cuerr == hipErrorNoDevice) || (cuerr == hipErrorInsufficientDriver)) {
     device_cnt_ = 0;
-  } else if (cuerr != cudaSuccess) {
+  } else if (cuerr != hipSuccess) {
     throw std::runtime_error(
-        "Unexpected failure on getting CUDA device count.");
+        "Unexpected failure on getting ROCM device count.");
   }
 
   // Use 'cuptiSubscribe' to check if the cupti has been initialized
@@ -163,7 +163,7 @@ DeviceMemoryTracker::~DeviceMemoryTracker()
 }
 
 int
-DeviceMemoryTracker::CudaDeviceCount()
+DeviceMemoryTracker::RocmDeviceCount()
 {
   if (tracker_) {
     return tracker_->device_cnt_;
@@ -263,8 +263,8 @@ DeviceMemoryTracker::TrackActivityInternal(CUpti_Activity* record)
       switch (memory_record->memoryKind) {
         case CUPTI_ACTIVITY_MEMORY_KIND_DEVICE: {
           usage->valid_ = UpdateMemoryTypeUsage(
-              memory_record, is_allocation, usage->cuda_memory_usage_byte_,
-              usage->cuda_array_len_);
+              memory_record, is_allocation, usage->rocm_memory_usage_byte_,
+              usage->rocm_array_len_);
           break;
         }
         case CUPTI_ACTIVITY_MEMORY_KIND_PINNED: {

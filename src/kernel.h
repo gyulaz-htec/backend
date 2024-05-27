@@ -25,17 +25,17 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-cudaError_t RunGatherKernel(
+hipError_t RunGatherKernel(
     const int8_t** input_ptr_buffer, const size_t* byte_size_buffer,
     const size_t* byte_size_offset_buffer, int8_t* output_buffer,
-    size_t request_count, cudaStream_t stream);
+    size_t request_count, hipStream_t stream);
 
 #ifdef __cplusplus
 }

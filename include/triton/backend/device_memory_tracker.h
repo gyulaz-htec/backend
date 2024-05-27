@@ -93,13 +93,13 @@ typedef struct TRITONBACKEND_CuptiTracker_t {
   // the following assumptions are made to pre-allocate the array with max
   // possible length:
   //  - system / pinned memory allocation should only be on deviceId 0
-  //  - CUDA allocation will only be on visible CUDA devices
+  //  - ROCM allocation will only be on visible ROCM devices
   int64_t* system_memory_usage_byte_;
   int64_t* pinned_memory_usage_byte_;
-  int64_t* cuda_memory_usage_byte_;
+  int64_t* rocm_memory_usage_byte_;
   uint32_t system_array_len_;
   uint32_t pinned_array_len_;
-  uint32_t cuda_array_len_;
+  uint32_t rocm_array_len_;
 
   // only set to false if somehow the CUPTI activity occurs on index out of
   // range. In that case, user should invalidate the whole tracker.
@@ -112,16 +112,16 @@ class DeviceMemoryTracker {
   struct MemoryUsage {
     MemoryUsage()
     {
-      cuda_memory_usage_byte_.resize(CudaDeviceCount(), 0);
+      rocm_memory_usage_byte_.resize(RocmDeviceCount(), 0);
 
       cupti_tracker_.system_memory_usage_byte_ =
           system_memory_usage_byte_.data();
       cupti_tracker_.pinned_memory_usage_byte_ =
           pinned_memory_usage_byte_.data();
-      cupti_tracker_.cuda_memory_usage_byte_ = cuda_memory_usage_byte_.data();
+      cupti_tracker_.rocm_memory_usage_byte_ = rocm_memory_usage_byte_.data();
       cupti_tracker_.system_array_len_ = system_memory_usage_byte_.size();
       cupti_tracker_.pinned_array_len_ = pinned_memory_usage_byte_.size();
-      cupti_tracker_.cuda_array_len_ = cuda_memory_usage_byte_.size();
+      cupti_tracker_.rocm_array_len_ = rocm_memory_usage_byte_.size();
       cupti_tracker_.valid_ = true;
     }
 
@@ -158,9 +158,9 @@ class DeviceMemoryTracker {
           pinned_memory_usage_byte_.begin(), pinned_memory_usage_byte_.begin(),
           std::plus<int64_t>());
       std::transform(
-          rhs.cuda_memory_usage_byte_.begin(),
-          rhs.cuda_memory_usage_byte_.end(), cuda_memory_usage_byte_.begin(),
-          cuda_memory_usage_byte_.begin(), std::plus<int64_t>());
+          rhs.rocm_memory_usage_byte_.begin(),
+          rhs.rocm_memory_usage_byte_.end(), rocm_memory_usage_byte_.begin(),
+          rocm_memory_usage_byte_.begin(), std::plus<int64_t>());
       return *this;
     }
 
@@ -211,7 +211,7 @@ class DeviceMemoryTracker {
       RETURN_IF_ERROR(set_attributes_for_device_fn(
           pinned_memory_usage_byte_, TRITONSERVER_MEMORY_CPU_PINNED));
       RETURN_IF_ERROR(set_attributes_for_device_fn(
-          cuda_memory_usage_byte_, TRITONSERVER_MEMORY_GPU));
+          rocm_memory_usage_byte_, TRITONSERVER_MEMORY_GPU));
 
       *usage_size = usage_idx;
       *usage = buffer_attributes_.data();
@@ -220,11 +220,11 @@ class DeviceMemoryTracker {
 
     // Byte size of allocated memory tracked,
     // 'system_memory_usage_byte_' is likely to be empty as system memory
-    // allocation is not controlled by CUDA driver. But keeping it for
+    // allocation is not controlled by ROCM driver. But keeping it for
     // completeness.
     std::vector<int64_t> system_memory_usage_byte_{0};
     std::vector<int64_t> pinned_memory_usage_byte_{0};
-    std::vector<int64_t> cuda_memory_usage_byte_{0};
+    std::vector<int64_t> rocm_memory_usage_byte_{0};
     bool tracked_{false};
 
     std::vector<TRITONSERVER_BufferAttributes*> buffer_attributes_;
@@ -250,7 +250,7 @@ class DeviceMemoryTracker {
   static bool Init();
   static void Fini();
 
-  static int CudaDeviceCount();
+  static int RocmDeviceCount();
 
   // The memory usage will be tracked and modified until it's untracked, 'usage'
   // must be valid and not to be modified externally until untrack is called.
@@ -317,7 +317,7 @@ class DeviceMemoryTracker {
 #else   // no-ops
   static bool Init() { return false; }
   static void Fini() {}
-  static int CudaDeviceCount() { return 0; }
+  static int RocmDeviceCount() { return 0; }
   static void TrackThreadMemoryUsage(MemoryUsage* usage) {}
   static void UntrackThreadMemoryUsage(MemoryUsage* usage) {}
   static bool EnableFromBackendConfig(

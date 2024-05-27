@@ -252,7 +252,7 @@ BackendInputCollector::ProcessTensor(
       buffer, buffer_byte_size, memory_type, memory_type_id);
 #ifdef TRITON_ENABLE_GPU
   if (need_sync_ && (event_ != nullptr)) {
-    cudaEventRecord(event_, stream_);
+    hipEventRecord(event_, stream_);
   }
 #endif  // TRITON_ENABLE_GPU
 }
@@ -362,9 +362,9 @@ BackendInputCollector::Finalize()
 #ifdef TRITON_ENABLE_GPU
   if ((!deferred_pinned_.empty()) && need_sync_) {
     if (event_ != nullptr) {
-      cudaEventSynchronize(event_);
+      hipEventSynchronize(event_);
     } else {
-      cudaStreamSynchronize(stream_);
+      hipStreamSynchronize(stream_);
     }
     need_sync_ = false;
   }
@@ -374,7 +374,7 @@ BackendInputCollector::Finalize()
   // deferred copies of pinned->CPU can now be done.
 #ifdef TRITON_ENABLE_GPU
   if (buffer_ready_event_ != nullptr) {
-    cudaEventSynchronize(buffer_ready_event_);
+    hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
   }
 #endif  // TRITON_ENABLE_GPU
@@ -390,7 +390,7 @@ BackendInputCollector::Finalize()
 #ifdef TRITON_ENABLE_GPU
   // Record the new event location if deferred copies occur
   if ((!deferred_pinned_.empty()) && need_sync_ && (event_ != nullptr)) {
-    cudaEventRecord(event_, stream_);
+    hipEventRecord(event_, stream_);
   }
 #endif  // TRITON_ENABLE_GPU
 
@@ -398,13 +398,13 @@ BackendInputCollector::Finalize()
 }
 
 bool
-BackendInputCollector::DeferredPinned::Finalize(cudaStream_t stream)
+BackendInputCollector::DeferredPinned::Finalize(hipStream_t stream)
 {
-  bool cuda_used = false;
+  bool rocm_used = false;
   auto err = CopyBuffer(
       "pinned buffer", TRITONSERVER_MEMORY_CPU_PINNED, 0, tensor_memory_type_,
       tensor_memory_id_, pinned_memory_size_, pinned_memory_,
-      tensor_buffer_ + tensor_buffer_offset_, stream, &cuda_used);
+      tensor_buffer_ + tensor_buffer_offset_, stream, &rocm_used);
 
   // If something goes wrong with the copy all the pending
   // responses fail...
@@ -424,7 +424,7 @@ BackendInputCollector::DeferredPinned::Finalize(cudaStream_t stream)
     }
     TRITONSERVER_ErrorDelete(err);
   }
-  return cuda_used;
+  return rocm_used;
 }
 
 bool
@@ -436,7 +436,7 @@ BackendInputCollector::SetInputTensor(
     const TRITONSERVER_MemoryType use_pinned_memory_type, const bool use_kernel,
     const bool wait_buffer)
 {
-  bool cuda_copy = false;
+  bool rocm_copy = false;
 
   if ((tensor_buffer_offset + input.memory_desc_.byte_size_) >
       tensor_buffer_byte_size) {
@@ -454,7 +454,7 @@ BackendInputCollector::SetInputTensor(
                   std::to_string(tensor_buffer_byte_size))
                   .c_str()));
     }
-    return cuda_copy;
+    return rocm_copy;
   }
 
   // If the request buffer matches the memory type that should use an
@@ -473,12 +473,12 @@ BackendInputCollector::SetInputTensor(
 
     pending_pinned_byte_size_ += input.memory_desc_.byte_size_;
     pending_pinned_input_buffers_.push_back(input);
-    return cuda_copy;
+    return rocm_copy;
   }
   // [FIXME] support other direction if prove to be faster, all kernel
   // handling code in this class assumes the destination buffer is on device
   // If the request buffer and the destination buffer are accessible by all
-  // GPUs (i.e. pinned, device), initiate the copy via copy CUDA kernel.
+  // GPUs (i.e. pinned, device), initiate the copy via copy ROCM kernel.
   // We only do this check for the
   // first buffer of an input and apply the same policy for all
   // buffers. So if an inputs data is split over different memory
@@ -505,25 +505,25 @@ BackendInputCollector::SetInputTensor(
       pending_copy_kernel_buffer_byte_size_ += input.memory_desc_.byte_size_;
       ++pending_copy_kernel_input_buffer_counts_;
       pending_copy_kernel_input_buffers_.push_back(input);
-      return cuda_copy;
+      return rocm_copy;
     }
   }
 
 #ifdef TRITON_ENABLE_GPU
   if (wait_buffer && (buffer_ready_event_ != nullptr)) {
-    cudaEventSynchronize(buffer_ready_event_);
+    hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
   }
 #endif  // TRITON_ENABLE_GPU
 
   // Direct copy without intermediate pinned memory.
-  bool cuda_used = false;
+  bool rocm_used = false;
   auto err = CopyBuffer(
       input_name, input.memory_desc_.memory_type_,
       input.memory_desc_.memory_type_id_, tensor_memory_type,
       tensor_memory_type_id, input.memory_desc_.byte_size_,
       input.memory_desc_.buffer_, tensor_buffer + tensor_buffer_offset, stream_,
-      &cuda_used, copy_on_stream_);
+      &rocm_used, copy_on_stream_);
   if (err != nullptr) {
     for (size_t i = input.start_request_idx_; i <= input.end_request_idx_;
          ++i) {
@@ -534,8 +534,8 @@ BackendInputCollector::SetInputTensor(
     }
     TRITONSERVER_ErrorDelete(err);
   }
-  cuda_copy |= cuda_used;
-  return cuda_copy;
+  rocm_copy |= rocm_used;
+  return rocm_copy;
 }
 
 bool
@@ -544,7 +544,7 @@ BackendInputCollector::FlushPendingPinned(
     const TRITONSERVER_MemoryType tensor_memory_type,
     const int64_t tensor_memory_type_id)
 {
-  bool cuda_copy = false;
+  bool rocm_copy = false;
 
   // Will be copying from CPU->pinned->GPU or GPU->pinned->CPU
 
@@ -575,7 +575,7 @@ BackendInputCollector::FlushPendingPinned(
   if (pinned_memory == nullptr) {
     size_t offset = 0;
     for (auto& pr : pending_pinned_input_buffers_) {
-      cuda_copy |= SetInputTensor(
+      rocm_copy |= SetInputTensor(
           "pinned fallback", pr, tensor_buffer, tensor_buffer_byte_size,
           tensor_memory_type, tensor_memory_type_id,
           pending_pinned_offset_ + offset, TRITONSERVER_MEMORY_CPU_PINNED,
@@ -586,18 +586,18 @@ BackendInputCollector::FlushPendingPinned(
   // We have a pinned buffer so copy the pending input buffer(s) into
   // the pinned memory.
   else {  // pinned_memory_type == TRITONSERVER_MEMORY_CPU_PINNED
-    bool cuda_used = false;
+    bool rocm_used = false;
     size_t offset = 0;
     if (!use_async_cpu_copy_) {
       for (auto& pr : pending_pinned_input_buffers_) {
-        cuda_used |= SetInputTensor(
+        rocm_used |= SetInputTensor(
             "pinned H2H", pr, pinned_memory, pending_pinned_byte_size_,
             TRITONSERVER_MEMORY_CPU_PINNED, 0 /* memory_type_id */, offset,
             TRITONSERVER_MEMORY_CPU_PINNED, false, true);
         offset += pr.memory_desc_.byte_size_;
       }
 
-      cuda_copy |= cuda_used;
+      rocm_copy |= rocm_used;
 
       // If the copy was not async (i.e. if request input was in CPU so
       // a CPU->CPU-PINNED copy was performed above), then the pinned
@@ -608,10 +608,10 @@ BackendInputCollector::FlushPendingPinned(
       // simply remember the pinned buffer and the corresponding
       // request inputs so that we can do the pinned->CPU copies in
       // finalize after we have waited for all async copies to complete.
-      if (!cuda_used) {
+      if (!rocm_used) {
 #ifdef TRITON_ENABLE_GPU
         if (buffer_ready_event_ != nullptr) {
-          cudaEventSynchronize(buffer_ready_event_);
+          hipEventSynchronize(buffer_ready_event_);
           buffer_ready_event_ = nullptr;
         }
 #endif  // TRITON_ENABLE_GPU
@@ -619,9 +619,9 @@ BackendInputCollector::FlushPendingPinned(
             "pinned input buffer H2D", TRITONSERVER_MEMORY_CPU_PINNED,
             0 /* memory_type_id */, tensor_memory_type, tensor_memory_type_id,
             pending_pinned_byte_size_, pinned_memory,
-            tensor_buffer + pending_pinned_offset_, stream_, &cuda_used,
+            tensor_buffer + pending_pinned_offset_, stream_, &rocm_used,
             copy_on_stream_);
-        cuda_copy |= cuda_used;
+        rocm_copy |= rocm_used;
 
         // If something goes wrong with the copy all the pending
         // responses fail...
@@ -641,7 +641,7 @@ BackendInputCollector::FlushPendingPinned(
           }
           TRITONSERVER_ErrorDelete(err);
         }
-      } else {  // cuda_used
+      } else {  // rocm_used
         deferred_pinned_.emplace_back(
             pinned_memory, pending_pinned_byte_size_, tensor_buffer,
             pending_pinned_offset_, tensor_memory_type, tensor_memory_type_id,
@@ -694,7 +694,7 @@ BackendInputCollector::FlushPendingPinned(
                   if (incomplete_count->fetch_sub(1) == 1) {
 #ifdef TRITON_ENABLE_GPU
                     if (buffer_ready_event_ != nullptr) {
-                      cudaEventSynchronize(buffer_ready_event_);
+                      hipEventSynchronize(buffer_ready_event_);
                       buffer_ready_event_ = nullptr;
                     }
 #endif  // TRITON_ENABLE_GPU
@@ -736,7 +736,7 @@ BackendInputCollector::FlushPendingPinned(
     in_use_memories_.emplace_back(backend_memory);
   }
 
-  return cuda_copy;
+  return rocm_copy;
 }
 
 TRITONSERVER_Error*
@@ -827,7 +827,7 @@ BackendInputCollector::ProcessBatchInput(
 {
 #ifdef TRITON_ENABLE_GPU
   if (buffer_ready_event_ != nullptr) {
-    cudaEventSynchronize(buffer_ready_event_);
+    hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
   }
 #endif  // TRITON_ENABLE_GPU
@@ -979,15 +979,15 @@ BackendInputCollector::ProcessBatchInput(
     }
   }
   if (*dst_memory_type == TRITONSERVER_MEMORY_GPU) {
-    bool cuda_used;
+    bool rocm_used;
     RETURN_IF_ERROR(CopyBuffer(
         "batch input buffer", internal_buffer->MemoryType(),
         internal_buffer->MemoryTypeId(), *dst_memory_type, *dst_memory_type_id,
-        *dst_buffer_byte_size, input_buffer, buffer, stream_, &cuda_used,
+        *dst_buffer_byte_size, input_buffer, buffer, stream_, &rocm_used,
         copy_on_stream_));
     // Need to keep the backend memory alive in the case of async copy
     in_use_memories_.emplace_back(std::move(internal_buffer));
-    need_sync_ |= cuda_used;
+    need_sync_ |= rocm_used;
   }
   return nullptr;  // success
 }
@@ -1115,7 +1115,7 @@ BackendInputCollector::FlushPendingCopyKernel(
     return false;
   }
 
-  bool cuda_copy = false;
+  bool rocm_copy = false;
   TRITONSERVER_Error* error = nullptr;
   // Only try to launch kernel if buffer count is large enough for
   // good GPU utilization
@@ -1123,7 +1123,7 @@ BackendInputCollector::FlushPendingCopyKernel(
     error = LaunchCopyKernel(
         tensor_buffer, tensor_buffer_byte_size, tensor_memory_type,
         tensor_memory_type_id);
-    cuda_copy = (error == nullptr);
+    rocm_copy = (error == nullptr);
     LOG_MESSAGE(
         TRITONSERVER_LOG_VERBOSE,
         (std::string("gather kernel launched with status: ") +
@@ -1135,7 +1135,7 @@ BackendInputCollector::FlushPendingCopyKernel(
       (error != nullptr)) {
     size_t offset = 0;
     for (auto& pr : pending_copy_kernel_input_buffers_) {
-      cuda_copy |= SetInputTensor(
+      rocm_copy |= SetInputTensor(
           "gather kernel fallback", pr, tensor_buffer, tensor_buffer_byte_size,
           tensor_memory_type, tensor_memory_type_id,
           pending_copy_kernel_buffer_offset_ + offset,
@@ -1151,7 +1151,7 @@ BackendInputCollector::FlushPendingCopyKernel(
   pending_copy_kernel_input_buffer_counts_ = 0;
   pending_copy_kernel_input_buffers_.clear();
 
-  return cuda_copy;
+  return rocm_copy;
 }
 
 TRITONSERVER_Error*
@@ -1283,23 +1283,23 @@ BackendInputCollector::LaunchCopyKernel(
   }
   char* byte_size_offset_buffer = backend_memory->MemoryPtr();
 
-  cudaMemcpyAsync(
+  hipMemcpyAsync(
       input_ptr_buffer, input_ptr_buffer_host.data(),
       pending_copy_kernel_input_buffer_counts_ * sizeof(int8_t*),
-      cudaMemcpyDefault, stream_);
-  cudaMemcpyAsync(
+      hipMemcpyDefault, stream_);
+  hipMemcpyAsync(
       byte_size_buffer, byte_size_buffer_host.data(),
       pending_copy_kernel_input_buffer_counts_ * sizeof(size_t),
-      cudaMemcpyDefault, stream_);
-  cudaMemcpyAsync(
+      hipMemcpyDefault, stream_);
+  hipMemcpyAsync(
       byte_size_offset_buffer, byte_size_offset_buffer_host.data(),
       pending_copy_kernel_input_buffer_counts_ * sizeof(size_t),
-      cudaMemcpyDefault, stream_);
+      hipMemcpyDefault, stream_);
   if (buffer_ready_event_ != nullptr) {
-    cudaEventSynchronize(buffer_ready_event_);
+    hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
   }
-  RETURN_IF_CUDA_ERROR(
+  RETURN_IF_ROCM_ERROR(
       RunGatherKernel(
           (const int8_t**)input_ptr_buffer, (const size_t*)byte_size_buffer,
           (const size_t*)byte_size_offset_buffer,

@@ -37,14 +37,14 @@
 #include "triton/core/tritonbackend.h"
 
 #ifdef TRITON_ENABLE_GPU
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
 namespace triton { namespace backend {
 
 #ifndef TRITON_ENABLE_GPU
-using cudaStream_t = void*;
-using cudaEvent_t = void*;
+using hipStream_t = void*;
+using hipEvent_t = void*;
 #endif  // !TRITON_ENABLE_GPU
 
 //
@@ -59,8 +59,8 @@ class BackendInputCollector {
       TRITONBACKEND_Request** requests, const uint32_t request_count,
       std::vector<TRITONBACKEND_Response*>* responses,
       TRITONBACKEND_MemoryManager* memory_manager, const bool pinned_enabled,
-      cudaStream_t stream, cudaEvent_t event = nullptr,
-      cudaEvent_t buffer_ready_event = nullptr,
+      hipStream_t stream, hipEvent_t event = nullptr,
+      hipEvent_t buffer_ready_event = nullptr,
       const size_t kernel_buffer_threshold = 0,
       const char* host_policy_name = nullptr, const bool copy_on_stream = false,
       const bool coalesce_request_input = false)
@@ -151,8 +151,8 @@ class BackendInputCollector {
       TRITONSERVER_MemoryType* dst_memory_type, int64_t* dst_memory_type_id);
 
   // Finalize processing of all requests for all input tensors. Return
-  // true if cudaMemcpyAsync is called, and the caller should call
-  // cudaStreamSynchronize (or cudaEventSynchronize on 'event') before
+  // true if hipMemcpyAsync is called, and the caller should call
+  // hipStreamSynchronize (or hipEventSynchronize on 'event') before
   // using the data.
   bool Finalize();
 
@@ -235,10 +235,10 @@ class BackendInputCollector {
   TRITONBACKEND_MemoryManager* memory_manager_;
   const bool pinned_enabled_;
   const bool use_async_cpu_copy_;
-  cudaStream_t stream_;
+  hipStream_t stream_;
 #ifdef TRITON_ENABLE_GPU
-  cudaEvent_t event_;
-  cudaEvent_t buffer_ready_event_;
+  hipEvent_t event_;
+  hipEvent_t buffer_ready_event_;
 #endif  // TRITON_ENABLE_GPU
   const size_t kernel_buffer_threshold_;
 
@@ -280,7 +280,7 @@ class BackendInputCollector {
     {
     }
 
-    bool Finalize(cudaStream_t stream);
+    bool Finalize(hipStream_t stream);
     bool finalized_;
     // Holding reference to the pinned memory buffer, which is managed
     // by BackendInputCollector as 'pinned_memory'

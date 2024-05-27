@@ -124,13 +124,13 @@ BackendModelInstance::BackendModelInstance(
 #endif
 
 #if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
-      cudaDeviceProp cuprops;
-      cudaError_t cuerr = cudaGetDeviceProperties(&cuprops, device_id_);
-      if (cuerr != cudaSuccess) {
+      hipDeviceProp_t cuprops;
+      hipError_t cuerr = hipGetDeviceProperties(&cuprops, device_id_);
+      if (cuerr != hipSuccess) {
         throw BackendModelInstanceException(TRITONSERVER_ErrorNew(
             TRITONSERVER_ERROR_INTERNAL,
-            (std::string("unable to get CUDA device properties for ") + name_ +
-             ": " + cudaGetErrorString(cuerr))
+            (std::string("unable to get ROCM device properties for ") + name_ +
+             ": " + hipGetErrorString(cuerr))
                 .c_str()));
       }
 
@@ -165,7 +165,7 @@ BackendModelInstance::BackendModelInstance(
   stream_ = nullptr;
   if (kind_ == TRITONSERVER_INSTANCEGROUPKIND_GPU) {
     THROW_IF_BACKEND_INSTANCE_ERROR(
-        CreateCudaStream(device_id_, 0 /* cuda_stream_priority */, &stream_));
+        CreateRocmStream(device_id_, 0 /* rocm_stream_priority */, &stream_));
   }
 
   // Get the host policy setting as a json string from message,
@@ -196,12 +196,12 @@ BackendModelInstance::~BackendModelInstance()
 {
 #ifdef TRITON_ENABLE_GPU
   if (stream_ != nullptr) {
-    cudaError_t err = cudaStreamDestroy(stream_);
-    if (err != cudaSuccess) {
+    hipError_t err = hipStreamDestroy(stream_);
+    if (err != hipSuccess) {
       TRITONSERVER_LogMessage(
           TRITONSERVER_LOG_ERROR, __FILE__, __LINE__,
           (std::string("~BackendModelInstance: ") + name_ +
-           " failed to destroy cuda stream: " + cudaGetErrorString(err))
+           " failed to destroy rocm stream: " + hipGetErrorString(err))
               .c_str());
     }
     stream_ = nullptr;

@@ -34,14 +34,14 @@
 #include "triton/core/tritonbackend.h"
 
 #ifdef TRITON_ENABLE_GPU
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
 namespace triton { namespace backend {
 
 #ifndef TRITON_ENABLE_GPU
-using cudaStream_t = void*;
-using cudaEvent_t = void*;
+using hipStream_t = void*;
+using hipEvent_t = void*;
 #endif  // !TRITON_ENABLE_GPU
 
 //
@@ -56,7 +56,7 @@ class BackendOutputResponder {
       std::vector<TRITONBACKEND_Response*>* responses,
       TRITONBACKEND_MemoryManager* memory_manager,
       const bool first_dim_batching, const bool pinned_enabled,
-      cudaStream_t stream, cudaEvent_t event = nullptr,
+      hipStream_t stream, hipEvent_t event = nullptr,
       bool copy_on_stream = false)
       : need_sync_(false), requests_(requests), request_count_(request_count),
         responses_(responses), memory_manager_(memory_manager),
@@ -78,7 +78,7 @@ class BackendOutputResponder {
       TRITONBACKEND_Request** requests, const uint32_t request_count,
       std::vector<TRITONBACKEND_Response*>* responses, const int max_batch_size,
       TRITONBACKEND_MemoryManager* memory_manager, const bool pinned_enabled,
-      cudaStream_t stream, cudaEvent_t event = nullptr,
+      hipStream_t stream, hipEvent_t event = nullptr,
       bool copy_on_stream = false)
       : need_sync_(false), requests_(requests), request_count_(request_count),
         responses_(responses), memory_manager_(memory_manager),
@@ -117,8 +117,8 @@ class BackendOutputResponder {
       const int64_t memory_type_id);
 
   // Finalize processing of all responses for all output
-  // tensors. Return true if cudaMemcpyAsync is called, and the caller
-  // should call cudaStreamSynchronize (or cudaEventSynchronize on 'event')
+  // tensors. Return true if hipMemcpyAsync is called, and the caller
+  // should call hipStreamSynchronize (or hipEventSynchronize on 'event')
   // before using the data.
   bool Finalize();
 
@@ -158,8 +158,8 @@ class BackendOutputResponder {
   const bool first_dim_batching_;
   const bool pinned_enabled_;
   const bool use_async_cpu_copy_;
-  cudaStream_t stream_;
-  cudaEvent_t event_;
+  hipStream_t stream_;
+  hipEvent_t event_;
 
   using ResponsesList =
       std::list<std::pair<TRITONBACKEND_Response**, OutputData>>;

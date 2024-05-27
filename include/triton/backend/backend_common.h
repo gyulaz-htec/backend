@@ -45,7 +45,7 @@
 #include "triton/common/triton_json.h"
 
 #ifdef TRITON_ENABLE_GPU
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
 namespace triton { namespace backend {
@@ -102,23 +102,23 @@ namespace triton { namespace backend {
   } while (false)
 
 #ifdef TRITON_ENABLE_GPU
-#define LOG_IF_CUDA_ERROR(X, MSG)                                    \
+#define LOG_IF_ROCM_ERROR(X, MSG)                                    \
   do {                                                               \
-    cudaError_t lice_err__ = (X);                                    \
-    if (lice_err__ != cudaSuccess) {                                 \
+    hipError_t lice_err__ = (X);                                    \
+    if (lice_err__ != hipSuccess) {                                 \
       IGNORE_ERROR(TRITONSERVER_LogMessage(                          \
           TRITONSERVER_LOG_INFO, __FILE__, __LINE__,                 \
-          (std::string(MSG) + ": " + cudaGetErrorString(lice_err__)) \
+          (std::string(MSG) + ": " + hipGetErrorString(lice_err__)) \
               .c_str()));                                            \
     }                                                                \
   } while (false)
 
-#define RETURN_IF_CUDA_ERROR(X, C, MSG)                                \
+#define RETURN_IF_ROCM_ERROR(X, C, MSG)                                \
   do {                                                                 \
-    cudaError_t rice_err__ = (X);                                      \
-    if (rice_err__ != cudaSuccess) {                                   \
+    hipError_t rice_err__ = (X);                                      \
+    if (rice_err__ != hipSuccess) {                                   \
       return TRITONSERVER_ErrorNew(                                    \
-          C, ((MSG) + ": " + cudaGetErrorString(rice_err__)).c_str()); \
+          C, ((MSG) + ": " + hipGetErrorString(rice_err__)).c_str()); \
     }                                                                  \
   } while (false)
 #endif  // TRITON_ENABLE_GPU
@@ -193,7 +193,7 @@ namespace triton { namespace backend {
 #endif  // TRITON_ENABLE_STATS
 
 #ifndef TRITON_ENABLE_GPU
-using cudaStream_t = void*;
+using hipStream_t = void*;
 #endif  // !TRITON_ENABLE_GPU
 
 /// Convenience deleter for TRITONBACKEND_ResponseFactory.
@@ -371,18 +371,18 @@ TRITONSERVER_Error* ReadInputTensor(
 /// Default input buffer will be used if nullptr is provided.
 /// \param memory_type The memory type of the buffer provided.
 /// \param memory_type_id The memory type id of the buffer provided.
-/// \param cuda_stream specifies the stream to be associated with, and 0 can be
+/// \param hip_stream specifies the stream to be associated with, and 0 can be
 /// passed for default stream.
-/// \param cuda_used returns whether a CUDA memory copy is initiated. If true,
-/// the caller should synchronize on the given 'cuda_stream' to ensure data copy
+/// \param rocm_used returns whether a ROCM memory copy is initiated. If true,
+/// the caller should synchronize on the given 'hip_stream' to ensure data copy
 /// is completed.
-/// \param copy_on_stream whether the memory copies should be performed in cuda
-/// host functions on the 'cuda_stream'.
+/// \param copy_on_stream whether the memory copies should be performed in rocm
+/// host functions on the 'hip_stream'.
 /// \return a TRITONSERVER_Error indicating success or failure.
 TRITONSERVER_Error* ReadInputTensor(
     TRITONBACKEND_Request* request, const std::string& input_name, char* buffer,
     size_t* buffer_byte_size, TRITONSERVER_MemoryType memory_type,
-    int64_t memory_type_id, cudaStream_t cuda_stream, bool* cuda_used,
+    int64_t memory_type_id, hipStream_t hip_stream, bool* rocm_used,
     const char* host_policy_name = nullptr, const bool copy_on_stream = false);
 
 /// Validate that an input matches one of the allowed input names.
@@ -488,20 +488,20 @@ void SendErrorForResponses(
 /// \param byte_size The byte size of the source buffer.
 /// \param src The pointer to the source buffer.
 /// \param dst The pointer to the destination buffer.
-/// \param cuda_stream specifies the stream to be associated with, and 0 can be
+/// \param hip_stream specifies the stream to be associated with, and 0 can be
 /// passed for default stream.
-/// \param cuda_used returns whether a CUDA memory copy is initiated. If true,
-/// the caller should synchronize on the given 'cuda_stream' to ensure data copy
+/// \param rocm_used returns whether a ROCM memory copy is initiated. If true,
+/// the caller should synchronize on the given 'hip_stream' to ensure data copy
 /// is completed.
-/// \param copy_on_stream whether the memory copies should be performed in cuda
-/// host functions on the 'cuda_stream'.
+/// \param copy_on_stream whether the memory copies should be performed in rocm
+/// host functions on the 'hip_stream'.
 /// \return a TRITONSERVER_Error indicating success or failure.
 TRITONSERVER_Error* CopyBuffer(
     const std::string& msg, const TRITONSERVER_MemoryType src_memory_type,
     const int64_t src_memory_type_id,
     const TRITONSERVER_MemoryType dst_memory_type,
     const int64_t dst_memory_type_id, const size_t byte_size, const void* src,
-    void* dst, cudaStream_t cuda_stream, bool* cuda_used,
+    void* dst, hipStream_t hip_stream, bool* rocm_used,
     const bool copy_on_stream = false);
 
 /// Does a file or directory exist?
@@ -542,7 +542,7 @@ TRITONSERVER_Error* ModelPaths(
     const bool ignore_directories, const bool ignore_files,
     std::unordered_map<std::string, std::string>* model_paths);
 
-/// Create a CUDA stream appropriate for GPU<->CPU data transfer
+/// Create a ROCM stream appropriate for GPU<->CPU data transfer
 /// operations for a given GPU device. The caller takes ownership of
 /// the stream. 'stream' returns nullptr if GPU support is disabled.
 ///
@@ -550,8 +550,8 @@ TRITONSERVER_Error* ModelPaths(
 /// \param priority The stream priority. Use 0 for normal priority.
 /// \param stream Returns the created stream.
 /// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_Error* CreateCudaStream(
-    const int device_id, const int cuda_stream_priority, cudaStream_t* stream);
+TRITONSERVER_Error* CreateRocmStream(
+    const int device_id, const int rocm_stream_priority, hipStream_t* stream);
 
 /// Parse the string as long long integer.
 ///
