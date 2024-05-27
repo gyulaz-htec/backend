@@ -98,6 +98,12 @@ if(${TRITON_ENABLE_GPU})
   endif()
 endif() # TRITON_ENABLE_GPU
 
+if(${TRITON_ENABLE_ROCM})
+  find_package(hip REQUIRED)
+  find_package(HIP)
+  enable_language(HIP)
+endif() # TRITON_ENABLE_ROCM
+
 #
 # Backend library containing useful source and utilities
 #
@@ -116,6 +122,10 @@ if(${TRITON_ENABLE_GPU})
     set(SRC_FILES ${SRC_FILES} "src/device_memory_tracker.cc")
   endif() # TRITON_ENABLE_MEMORY_TRACKER
 endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
+  set(SRC_FILES ${SRC_FILES} "src/kernel.h")
+endif() # TRITON_ENABLE_ROCM
 
 add_library(
   triton-backend-utils
@@ -139,6 +149,59 @@ if(${TRITON_ENABLE_GPU})
     OPTIONS -Xcompiler ${HOST_COMPILER_FLAGS}
   )
 endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
+  # set(HOST_COMPILER_FLAGS "")
+  # if (WIN32)
+  #   set(HOST_COMPILER_FLAGS "/MD")
+  # else()
+  #   set(HOST_COMPILER_FLAGS "-fPIC")
+  # endif()
+
+  set(TRITON_ROCM_HOME /opt/rocm)
+
+  list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+  list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip /opt/rocm)
+
+  if (NOT CMAKE_HIP_COMPILER)
+    set(CMAKE_HIP_COMPILER "${TRITON_ROCM_HOME}/llvm/bin/clang++")
+  endif()
+
+  if (NOT CMAKE_HIP_ARCHITECTURES)
+    set(CMAKE_HIP_ARCHITECTURES "gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx940;gfx941;gfx942")
+  endif()
+
+  file(GLOB rocm_cmake_components ${TRITON_ROCM_HOME}/lib/cmake/*)
+  list(APPEND CMAKE_PREFIX_PATH ${rocm_cmake_components})
+
+  # replicate strategy used by pytorch to get ROCM_VERSION
+  file(READ "${TRITON_ROCM_HOME}/.info/version-dev" ROCM_VERSION_DEV_RAW)
+  string(REGEX MATCH "^([0-9]+)\.([0-9]+)\.([0-9]+)-.*$" ROCM_VERSION_DEV_MATCH ${ROCM_VERSION_DEV_RAW})
+  if (ROCM_VERSION_DEV_MATCH)
+    set(ROCM_VERSION_DEV_MAJOR ${CMAKE_MATCH_1})
+    set(ROCM_VERSION_DEV_MINOR ${CMAKE_MATCH_2})
+    set(ROCM_VERSION_DEV_PATCH ${CMAKE_MATCH_3})
+    set(ROCM_VERSION_DEV "${ROCM_VERSION_DEV_MAJOR}.${ROCM_VERSION_DEV_MINOR}.${ROCM_VERSION_DEV_PATCH}")
+    math(EXPR ROCM_VERSION_DEV_INT "(${ROCM_VERSION_DEV_MAJOR}*10000) + (${ROCM_VERSION_DEV_MINOR}*100) + ${ROCM_VERSION_DEV_PATCH}")
+  endif()
+  message("\n***** ROCm version from ${TRITON_ROCM_HOME}/.info/version-dev ****\n")
+  message("ROCM_VERSION_DEV: ${ROCM_VERSION_DEV}")
+  message("ROCM_VERSION_DEV_MAJOR: ${ROCM_VERSION_DEV_MAJOR}")
+  message("ROCM_VERSION_DEV_MINOR: ${ROCM_VERSION_DEV_MINOR}")
+  message("ROCM_VERSION_DEV_PATCH: ${ROCM_VERSION_DEV_PATCH}")
+  message("ROCM_VERSION_DEV_INT:   ${ROCM_VERSION_DEV_INT}")
+  message("\n***** HIP LANGUAGE CONFIG INFO ****\n")
+  message("CMAKE_HIP_COMPILER:      ${CMAKE_HIP_COMPILER}")
+  message("CMAKE_HIP_ARCHITECTURES: ${CMAKE_HIP_ARCHITECTURES}")
+  message("CMAKE_HIP_FLAGS:         ${CMAKE_HIP_FLAGS}")
+
+  add_library(
+    kernel_library_new
+    src/kernel.cu src/kernel.h
+  )
+  set_source_files_properties(src/kernel.cu PROPERTIES LANGUAGE HIP)
+  set_property(TARGET kernel_library_new PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif() # TRITON_ENABLE_ROCM
 
 add_library(
   TritonBackend::triton-backend-utils ALIAS triton-backend-utils
@@ -164,7 +227,7 @@ target_compile_options(
   triton-backend-utils
   PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-    -Wall -Wextra -Wno-unused-parameter -Werror>
+    -Wall -Wextra -Wno-unused-parameter -Werror -Wno-unused-result>
   $<$<CXX_COMPILER_ID:MSVC>:/Wall /D_WIN32_WINNT=0x0A00 /EHsc /Zc:preprocessor>
 )
 
@@ -239,6 +302,16 @@ if(${TRITON_ENABLE_GPU})
   endif() # TRITON_ENABLE_MEMORY_TRACKER
 endif() # TRITON_ENABLE_GPU
 
+if(${TRITON_ENABLE_ROCM})
+  target_link_libraries(
+    triton-backend-utils
+    PUBLIC
+      hip::host
+    PRIVATE
+      kernel_library_new
+  )
+endif() #TRITON_ENABLE_ROCM
+
 #
 # Install
 #
@@ -255,6 +328,17 @@ install(
 )
 
 if(${TRITON_ENABLE_GPU})
+  install(
+    TARGETS
+      kernel_library_new
+    EXPORT
+      triton-backend-targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
   install(
     TARGETS
       kernel_library_new
