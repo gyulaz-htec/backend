@@ -29,25 +29,6 @@ cmake_minimum_required(VERSION 3.17)
 project(tritonbackend LANGUAGES C CXX)
 
 #
-# Options
-#
-option(TRITON_ENABLE_GPU "Enable GPU support in backend utilities" ON)
-option(TRITON_ENABLE_MALI_GPU "Enable Arm MALI GPU support in backend utilities" OFF)
-option(TRITON_ENABLE_ROCM "Enable AMD GPU support in backend utilities" OFF)
-option(TRITON_ENABLE_MIGRAPHX "Enable AMD GPU support with MIGraphX in backend utilities" OFF)
-option(TRITON_ENABLE_STATS "Include statistics collections in backend utilities" ON)
-# Default OFF unless backend explicitly request to use provided implementation
-option(TRITON_ENABLE_MEMORY_TRACKER "Include device memory tracker in backend utilities" OFF)
-
-set(TRITON_COMMON_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/common repo")
-set(TRITON_CORE_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/core repo")
-
-# Brian
-if(TRITON_ENABLE_ROCM OR TRITON_ENABLE_MIGRAPHX)
-  include_directories(/opt/rocm/include)
-endif()
-
-#
 # Setting C++ standard
 #
 set(TRITON_MIN_CXX_STANDARD 17 CACHE STRING "The minimum C++ standard whose features are requested to build this target.")
@@ -97,6 +78,10 @@ if(${TRITON_ENABLE_GPU})
     message(WARNING "CUDA ${CUDA_VERSION} does not support CUDA graphs.")
   endif()
 endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
+  find_package(hip REQUIRED)
+endif() # TRITON_ENABLE_ROCM
 
 #
 # Backend library containing useful source and utilities
@@ -238,6 +223,14 @@ if(${TRITON_ENABLE_GPU})
     )
   endif() # TRITON_ENABLE_MEMORY_TRACKER
 endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
+  target_link_libraries(
+    triton-backend-utils
+    PUBLIC
+      hip::host
+  )
+endif() #TRITON_ENABLE_ROCM
 
 #
 # Install
