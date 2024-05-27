@@ -43,8 +43,8 @@ BackendMemory::Create(
   switch (alloc_type) {
     case AllocationType::CPU_PINNED: {
 #ifdef TRITON_ENABLE_GPU
-      RETURN_IF_CUDA_ERROR(
-          cudaHostAlloc(&ptr, byte_size, cudaHostAllocPortable),
+      RETURN_IF_ROCM_ERROR(
+          hipHostMalloc(&ptr, byte_size, hipHostMallocPortable),
           TRITONSERVER_ERROR_UNAVAILABLE,
           std::string("failed to allocate pinned system memory"));
 #else
@@ -58,27 +58,27 @@ BackendMemory::Create(
     case AllocationType::GPU: {
 #ifdef TRITON_ENABLE_GPU
       int current_device;
-      RETURN_IF_CUDA_ERROR(
-          cudaGetDevice(&current_device), TRITONSERVER_ERROR_INTERNAL,
+      RETURN_IF_ROCM_ERROR(
+          hipGetDevice(&current_device), TRITONSERVER_ERROR_INTERNAL,
           std::string("failed to get device"));
       bool overridden = (current_device != memory_type_id);
       if (overridden) {
-        RETURN_IF_CUDA_ERROR(
-            cudaSetDevice(memory_type_id), TRITONSERVER_ERROR_INTERNAL,
+        RETURN_IF_ROCM_ERROR(
+            hipSetDevice(memory_type_id), TRITONSERVER_ERROR_INTERNAL,
             std::string("failed to set device"));
       }
 
-      auto err = cudaMalloc(&ptr, byte_size);
+      auto err = hipMalloc(&ptr, byte_size);
 
       if (overridden) {
-        LOG_IF_CUDA_ERROR(
-            cudaSetDevice(current_device), "failed to set CUDA device");
+        LOG_IF_ROCM_ERROR(
+            hipSetDevice(current_device), "failed to set ROCM device");
       }
 
       RETURN_ERROR_IF_FALSE(
-          err == cudaSuccess, TRITONSERVER_ERROR_UNAVAILABLE,
+          err == hipSuccess, TRITONSERVER_ERROR_UNAVAILABLE,
           std::string("failed to allocate GPU memory: ") +
-              cudaGetErrorString(err));
+              hipGetErrorString(err));
 #else
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_UNSUPPORTED, "GPU allocation not supported");
@@ -172,8 +172,8 @@ BackendMemory::~BackendMemory()
       case AllocationType::CPU_PINNED:
 #ifdef TRITON_ENABLE_GPU
         if (buffer_ != nullptr) {
-          LOG_IF_CUDA_ERROR(
-              cudaFreeHost(buffer_), "failed to free pinned memory");
+          LOG_IF_ROCM_ERROR(
+              hipHostFree(buffer_), "failed to free pinned memory");
         }
 #endif  // TRITON_ENABLE_GPU
         break;
@@ -181,7 +181,7 @@ BackendMemory::~BackendMemory()
       case AllocationType::GPU:
 #ifdef TRITON_ENABLE_GPU
         if (buffer_ != nullptr) {
-          LOG_IF_CUDA_ERROR(cudaFree(buffer_), "failed to free CUDA memory");
+          LOG_IF_ROCM_ERROR(hipFree(buffer_), "failed to free ROCM memory");
         }
 #endif  // TRITON_ENABLE_GPU
         break;

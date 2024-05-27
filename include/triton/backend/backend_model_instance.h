@@ -30,13 +30,13 @@
 #include "triton/core/tritonbackend.h"
 
 #ifdef TRITON_ENABLE_GPU
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
 namespace triton { namespace backend {
 
 #ifndef TRITON_ENABLE_GPU
-using cudaStream_t = void*;
+using hipStream_t = void*;
 #endif  // !TRITON_ENABLE_GPU
 
 class BackendModel;
@@ -79,7 +79,7 @@ class BackendModelInstance {
   // Returns the stream associated with this instance that can be used
   // for GPU<->CPU memory transfers. Returns nullptr if GPU support is
   // disabled or if this instance is not executing on a GPU.
-  cudaStream_t CudaStream() { return stream_; }
+  hipStream_t RocmStream() { return stream_; }
 
   const std::string& HostPolicyName() const { return host_policy_name_; }
 
@@ -92,7 +92,7 @@ class BackendModelInstance {
   int32_t device_id_;
 
   std::string artifact_filename_;
-  cudaStream_t stream_;
+  hipStream_t stream_;
 
   std::string host_policy_name_;
 };
