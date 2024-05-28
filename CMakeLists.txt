@@ -181,6 +181,7 @@ if(${TRITON_ENABLE_ROCM})
     src/kernel.cu src/kernel.h
   )
   set_source_files_properties(src/kernel.cu PROPERTIES LANGUAGE HIP)
+  set_property(TARGET kernel_library_new PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif() # TRITON_ENABLE_ROCM
 
 add_library(
