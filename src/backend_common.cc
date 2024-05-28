@@ -59,7 +59,7 @@
 namespace triton { namespace backend {
 
 #if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
-void ROCMRT_CB
+static void
 MemcpyHost(void* args)
 {
   auto* copy_params = reinterpret_cast<CopyParams*>(args);
