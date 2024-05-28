@@ -145,7 +145,7 @@ BackendOutputResponder::ProcessTensor(
 
   // Done with the tensor, flush any pending pinned copies.
   need_sync_ |= FlushPendingPinned(buffer, memory_type, memory_type_id);
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
   }
@@ -240,7 +240,7 @@ BackendOutputResponder::ProcessStateTensor(
 
   // Done with the tensor, flush any pending pinned copies.
   need_sync_ |= FlushPendingPinned(buffer, memory_type, memory_type_id);
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
   }
@@ -252,7 +252,7 @@ BackendOutputResponder::ProcessStateTensor(
 bool
 BackendOutputResponder::Finalize()
 {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if ((!deferred_pinned_.empty()) && need_sync_) {
     if (event_ != nullptr) {
       hipEventSynchronize(event_);
@@ -290,7 +290,7 @@ BackendOutputResponder::Finalize()
     }
   }
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   // Record the new event location if deferred copies occur
   if ((!deferred_pinned_.empty()) && need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
@@ -597,7 +597,7 @@ BackendOutputResponder::ProcessBatchOutput(
 
   // Done with the tensor, flush any pending pinned copies.
   need_sync_ |= FlushPendingPinned(buffer, memory_type, memory_type_id);
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
   }

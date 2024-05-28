@@ -42,7 +42,7 @@ BackendMemory::Create(
   void* ptr = nullptr;
   switch (alloc_type) {
     case AllocationType::CPU_PINNED: {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
       RETURN_IF_ROCM_ERROR(
           hipHostMalloc(&ptr, byte_size, hipHostMallocPortable),
           TRITONSERVER_ERROR_UNAVAILABLE,
@@ -56,7 +56,7 @@ BackendMemory::Create(
     }
 
     case AllocationType::GPU: {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
       int current_device;
       RETURN_IF_ROCM_ERROR(
           hipGetDevice(&current_device), TRITONSERVER_ERROR_INTERNAL,
@@ -170,7 +170,7 @@ BackendMemory::~BackendMemory()
   if (owns_buffer_) {
     switch (alloctype_) {
       case AllocationType::CPU_PINNED:
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
         if (buffer_ != nullptr) {
           LOG_IF_ROCM_ERROR(
               hipHostFree(buffer_), "failed to free pinned memory");
@@ -179,7 +179,7 @@ BackendMemory::~BackendMemory()
         break;
 
       case AllocationType::GPU:
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
         if (buffer_ != nullptr) {
           LOG_IF_ROCM_ERROR(hipFree(buffer_), "failed to free ROCM memory");
         }

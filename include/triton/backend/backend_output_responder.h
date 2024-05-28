@@ -33,13 +33,13 @@
 #include "triton/common/async_work_queue.h"
 #include "triton/core/tritonbackend.h"
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
 #include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
 namespace triton { namespace backend {
 
-#ifndef TRITON_ENABLE_GPU
+#if !defined(TRITON_ENABLE_GPU) && !defined(TRITON_ENABLE_ROCM)
 using hipStream_t = void*;
 using hipEvent_t = void*;
 #endif  // !TRITON_ENABLE_GPU

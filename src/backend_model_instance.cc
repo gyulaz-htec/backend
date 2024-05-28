@@ -104,26 +104,27 @@ BackendModelInstance::BackendModelInstance(
     }
     case TRITONSERVER_INSTANCEGROUPKIND_GPU: {
 #if defined(TRITON_ENABLE_GPU)
-    LOG_MESSAGE(
-        TRITONSERVER_LOG_INFO,
-        (std::string("*** TRITON_ENABLE_GPU ON").c_str()));
+      LOG_MESSAGE(
+          TRITONSERVER_LOG_INFO,
+          (std::string("*** TRITON_ENABLE_GPU ON").c_str()));
 
 #elif defined(TRITON_ENABLE_MIGRAPHX)
-    LOG_MESSAGE(
-        TRITONSERVER_LOG_INFO,
-        (std::string("*** TRITON_ENABLE_MIGRAPHX ON").c_str()));
+      LOG_MESSAGE(
+          TRITONSERVER_LOG_INFO,
+          (std::string("*** TRITON_ENABLE_MIGRAPHX ON").c_str()));
 
 #elif defined(TRITON_ENABLE_ROCM)
-    LOG_MESSAGE(
-        TRITONSERVER_LOG_INFO,
-        (std::string("*** TRITON_ENABLE_ROCM ON").c_str()));
+      LOG_MESSAGE(
+          TRITONSERVER_LOG_INFO,
+          (std::string("*** TRITON_ENABLE_ROCM ON").c_str()));
 #else
       LOG_MESSAGE(
           TRITONSERVER_LOG_INFO,
           (std::string("*** NO VISIBLE GPU FLAGS").c_str()));
 #endif
 
-#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || defined(TRITON_ENABLE_ROCM)
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_MIGRAPHX) || \
+    defined(TRITON_ENABLE_ROCM)
       hipDeviceProp_t cuprops;
       hipError_t cuerr = hipGetDeviceProperties(&cuprops, device_id_);
       if (cuerr != hipSuccess) {
@@ -194,7 +195,7 @@ BackendModelInstance::BackendModelInstance(
 
 BackendModelInstance::~BackendModelInstance()
 {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (stream_ != nullptr) {
     hipError_t err = hipStreamDestroy(stream_);
     if (err != hipSuccess) {

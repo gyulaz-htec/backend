@@ -29,7 +29,7 @@
 #include <atomic>
 
 #include "triton/backend/backend_common.h"
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
 #include "kernel.h"
 #endif  // TRITON_ENABLE_GPU
 
@@ -250,7 +250,7 @@ BackendInputCollector::ProcessTensor(
       FlushPendingPinned(buffer, buffer_byte_size, memory_type, memory_type_id);
   need_sync_ |= FlushPendingCopyKernel(
       buffer, buffer_byte_size, memory_type, memory_type_id);
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
   }
@@ -359,7 +359,7 @@ BackendInputCollector::ProcessTensor(
 bool
 BackendInputCollector::Finalize()
 {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if ((!deferred_pinned_.empty()) && need_sync_) {
     if (event_ != nullptr) {
       hipEventSynchronize(event_);
@@ -372,7 +372,7 @@ BackendInputCollector::Finalize()
 
   // After the above sync all the GPU->pinned copies are complete. Any
   // deferred copies of pinned->CPU can now be done.
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (buffer_ready_event_ != nullptr) {
     hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
@@ -387,7 +387,7 @@ BackendInputCollector::Finalize()
     need_sync_ |= completion_queue_.Get();
   }
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   // Record the new event location if deferred copies occur
   if ((!deferred_pinned_.empty()) && need_sync_ && (event_ != nullptr)) {
     hipEventRecord(event_, stream_);
@@ -509,7 +509,7 @@ BackendInputCollector::SetInputTensor(
     }
   }
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (wait_buffer && (buffer_ready_event_ != nullptr)) {
     hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
@@ -609,7 +609,7 @@ BackendInputCollector::FlushPendingPinned(
       // request inputs so that we can do the pinned->CPU copies in
       // finalize after we have waited for all async copies to complete.
       if (!rocm_used) {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
         if (buffer_ready_event_ != nullptr) {
           hipEventSynchronize(buffer_ready_event_);
           buffer_ready_event_ = nullptr;
@@ -692,7 +692,7 @@ BackendInputCollector::FlushPendingPinned(
                   // The last segmented task will start the next phase of
                   // the internal pinned buffer copy
                   if (incomplete_count->fetch_sub(1) == 1) {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
                     if (buffer_ready_event_ != nullptr) {
                       hipEventSynchronize(buffer_ready_event_);
                       buffer_ready_event_ = nullptr;
@@ -825,7 +825,7 @@ BackendInputCollector::ProcessBatchInput(
     const char** dst_buffer, size_t* dst_buffer_byte_size,
     TRITONSERVER_MemoryType* dst_memory_type, int64_t* dst_memory_type_id)
 {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   if (buffer_ready_event_ != nullptr) {
     hipEventSynchronize(buffer_ready_event_);
     buffer_ready_event_ = nullptr;
@@ -1160,7 +1160,7 @@ BackendInputCollector::LaunchCopyKernel(
     const TRITONSERVER_MemoryType tensor_memory_type,
     const int64_t tensor_memory_type_id)
 {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   input_ptr_buffer_host_.emplace_back(new std::vector<int8_t*>());
   byte_size_buffer_host_.emplace_back(new std::vector<size_t>());
   byte_size_offset_buffer_host_.emplace_back(new std::vector<size_t>());
