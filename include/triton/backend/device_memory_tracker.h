@@ -112,7 +112,7 @@ class DeviceMemoryTracker {
   struct MemoryUsage {
     MemoryUsage()
     {
-      rocm_memory_usage_byte_.resize(CudaDeviceCount(), 0);
+      rocm_memory_usage_byte_.resize(RocmDeviceCount(), 0);
 
       cupti_tracker_.system_memory_usage_byte_ =
           system_memory_usage_byte_.data();
@@ -250,7 +250,7 @@ class DeviceMemoryTracker {
   static bool Init();
   static void Fini();
 
-  static int CudaDeviceCount();
+  static int RocmDeviceCount();
 
   // The memory usage will be tracked and modified until it's untracked, 'usage'
   // must be valid and not to be modified externally until untrack is called.
@@ -317,7 +317,7 @@ class DeviceMemoryTracker {
 #else   // no-ops
   static bool Init() { return false; }
   static void Fini() {}
-  static int CudaDeviceCount() { return 0; }
+  static int RocmDeviceCount() { return 0; }
   static void TrackThreadMemoryUsage(MemoryUsage* usage) {}
   static void UntrackThreadMemoryUsage(MemoryUsage* usage) {}
   static bool EnableFromBackendConfig(

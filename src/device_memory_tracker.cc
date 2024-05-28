@@ -163,7 +163,7 @@ DeviceMemoryTracker::~DeviceMemoryTracker()
 }
 
 int
-DeviceMemoryTracker::CudaDeviceCount()
+DeviceMemoryTracker::RocmDeviceCount()
 {
   if (tracker_) {
     return tracker_->device_cnt_;
