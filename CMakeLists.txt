@@ -102,6 +102,10 @@ if(${TRITON_ENABLE_GPU})
   endif() # TRITON_ENABLE_MEMORY_TRACKER
 endif() # TRITON_ENABLE_GPU
 
+if(${TRITON_ENABLE_ROCM})
+  set(SRC_FILES ${SRC_FILES} "src/kernel.h")
+endif() # TRITON_ENABLE_ROCM
+
 add_library(
   triton-backend-utils
   ${SRC_FILES}
@@ -124,6 +128,14 @@ if(${TRITON_ENABLE_GPU})
     OPTIONS -Xcompiler ${HOST_COMPILER_FLAGS}
   )
 endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
+  add_library(
+    kernel_library_new
+    src/kernel.cu src/kernel.h
+  )
+  set_source_files_properties(src/kernel.cu PROPERTIES LANGUAGE HIP)
+endif() # TRITON_ENABLE_ROCM
 
 add_library(
   TritonBackend::triton-backend-utils ALIAS triton-backend-utils
@@ -248,6 +260,17 @@ install(
 )
 
 if(${TRITON_ENABLE_GPU})
+  install(
+    TARGETS
+      kernel_library_new
+    EXPORT
+      triton-backend-targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+endif() # TRITON_ENABLE_GPU
+
+if(${TRITON_ENABLE_ROCM})
   install(
     TARGETS
       kernel_library_new
