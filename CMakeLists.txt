@@ -246,6 +246,8 @@ if(${TRITON_ENABLE_ROCM})
     triton-backend-utils
     PUBLIC
       hip::host
+    PRIVATE
+      kernel_library_new
   )
 endif() #TRITON_ENABLE_ROCM
 
