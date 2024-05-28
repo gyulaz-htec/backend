@@ -81,6 +81,8 @@ endif() # TRITON_ENABLE_GPU
 
 if(${TRITON_ENABLE_ROCM})
   find_package(hip REQUIRED)
+  find_package(HIP)
+  enable_language(HIP)
 endif() # TRITON_ENABLE_ROCM
 
 #
@@ -130,6 +132,9 @@ if(${TRITON_ENABLE_GPU})
 endif() # TRITON_ENABLE_GPU
 
 if(${TRITON_ENABLE_ROCM})
+  if (NOT CMAKE_HIP_ARCHITECTURES)
+    set(CMAKE_HIP_ARCHITECTURES "gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx940;gfx941;gfx942")
+  endif()
   add_library(
     kernel_library_new
     src/kernel.cu src/kernel.h
@@ -161,7 +166,7 @@ target_compile_options(
   triton-backend-utils
   PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-    -Wall -Wextra -Wno-unused-parameter -Werror>
+    -Wall -Wextra -Wno-unused-parameter -Werror -Wno-unused-result>
   $<$<CXX_COMPILER_ID:MSVC>:/Wall /D_WIN32_WINNT=0x0A00 /EHsc /Zc:preprocessor>
 )
 
