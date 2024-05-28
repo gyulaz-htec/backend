@@ -44,7 +44,7 @@
 #define TRITONJSON_STATUSSUCCESS nullptr
 #include "triton/common/triton_json.h"
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
 #include <hip/hip_runtime_api.h>
 #endif  // TRITON_ENABLE_GPU
 
@@ -101,25 +101,24 @@ namespace triton { namespace backend {
     }                                    \
   } while (false)
 
-#ifdef TRITON_ENABLE_GPU
-#define LOG_IF_ROCM_ERROR(X, MSG)                                    \
-  do {                                                               \
-    hipError_t lice_err__ = (X);                                    \
-    if (lice_err__ != hipSuccess) {                                 \
-      IGNORE_ERROR(TRITONSERVER_LogMessage(                          \
-          TRITONSERVER_LOG_INFO, __FILE__, __LINE__,                 \
-          (std::string(MSG) + ": " + hipGetErrorString(lice_err__)) \
-              .c_str()));                                            \
-    }                                                                \
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
+#define LOG_IF_ROCM_ERROR(X, MSG)                                              \
+  do {                                                                         \
+    hipError_t lice_err__ = (X);                                               \
+    if (lice_err__ != hipSuccess) {                                            \
+      IGNORE_ERROR(TRITONSERVER_LogMessage(                                    \
+          TRITONSERVER_LOG_INFO, __FILE__, __LINE__,                           \
+          (std::string(MSG) + ": " + hipGetErrorString(lice_err__)).c_str())); \
+    }                                                                          \
   } while (false)
 
-#define RETURN_IF_ROCM_ERROR(X, C, MSG)                                \
-  do {                                                                 \
+#define RETURN_IF_ROCM_ERROR(X, C, MSG)                               \
+  do {                                                                \
     hipError_t rice_err__ = (X);                                      \
     if (rice_err__ != hipSuccess) {                                   \
-      return TRITONSERVER_ErrorNew(                                    \
+      return TRITONSERVER_ErrorNew(                                   \
           C, ((MSG) + ": " + hipGetErrorString(rice_err__)).c_str()); \
-    }                                                                  \
+    }                                                                 \
   } while (false)
 #endif  // TRITON_ENABLE_GPU
 
@@ -192,7 +191,7 @@ namespace triton { namespace backend {
 #define SET_TIMESTAMP(TS_NS)
 #endif  // TRITON_ENABLE_STATS
 
-#ifndef TRITON_ENABLE_GPU
+#if !defined(TRITON_ENABLE_GPU) && !defined(TRITON_ENABLE_ROCM)
 using hipStream_t = void*;
 #endif  // !TRITON_ENABLE_GPU
 

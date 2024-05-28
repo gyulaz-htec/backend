@@ -58,7 +58,7 @@
 
 namespace triton { namespace backend {
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
 void ROCMRT_CB
 MemcpyHost(void* args)
 {
@@ -692,7 +692,7 @@ CopyBuffer(
   // need to be careful on whether the src buffer is valid.
   if ((src_memory_type != TRITONSERVER_MEMORY_GPU) &&
       (dst_memory_type != TRITONSERVER_MEMORY_GPU)) {
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
     if (copy_on_stream) {
       auto params = new CopyParams(dst, src, byte_size);
       hipLaunchHostFunc(
@@ -705,8 +705,7 @@ CopyBuffer(
     memcpy(dst, src, byte_size);
 #endif  // TRITON_ENABLE_GPU
   } else {
-#ifdef TRITON_ENABLE_GPU
-    // [TODO] use hipMemcpyDefault if UVM is supported for the device
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
     auto copy_kind = hipMemcpyDeviceToDevice;
     if (src_memory_type != TRITONSERVER_MEMORY_GPU) {
       copy_kind = hipMemcpyHostToDevice;
@@ -900,7 +899,7 @@ CreateRocmStream(
 {
   *stream = nullptr;
 
-#ifdef TRITON_ENABLE_GPU
+#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
   // Make sure that correct device is set before creating stream and
   // then restore the device to what was set by the caller.
   int current_device;
