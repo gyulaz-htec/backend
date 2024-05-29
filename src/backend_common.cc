@@ -58,8 +58,8 @@
 
 namespace triton { namespace backend {
 
-#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
-static void
+#ifdef TRITON_ENABLE_GPU
+void CUDART_CB
 MemcpyHost(void* args)
 {
   auto* copy_params = reinterpret_cast<CopyParams*>(args);
@@ -74,8 +74,8 @@ GetUsePinnedMemoryType(TRITONSERVER_MemoryType ref_buffer_type)
   // The following matrix is used for both input and output.
   // src   \ dest | non-pinned    | pinned     | device
   // non-pinned   | memcpy        | memcpy     | buffer needed
-  // pinned       | memcpy        | memcpy     | hipMemcpy
-  // device       | buffer needed | hipMemcpy | hipMemcpy
+  // pinned       | memcpy        | memcpy     | cudaMemcpy
+  // device       | buffer needed | cudaMemcpy | cudaMemcpy
   if (ref_buffer_type == TRITONSERVER_MEMORY_CPU_PINNED) {
     return TRITONSERVER_MEMORY_CPU_PINNED;
   }
@@ -206,7 +206,7 @@ TRITONSERVER_Error*
 ReadInputTensor(
     TRITONBACKEND_Request* request, const std::string& input_name, char* buffer,
     size_t* buffer_byte_size, TRITONSERVER_MemoryType memory_type,
-    int64_t memory_type_id, hipStream_t hip_stream, bool* rocm_used,
+    int64_t memory_type_id, cudaStream_t cuda_stream, bool* cuda_used,
     const char* host_policy_name, const bool copy_on_stream)
 {
   TRITONBACKEND_Input* input;
@@ -239,7 +239,7 @@ ReadInputTensor(
     RETURN_IF_ERROR(CopyBuffer(
         "Failed to copy buffer", input_memory_type, input_memory_type_id,
         memory_type, memory_type_id, input_buffer_byte_size, input_buffer,
-        buffer + output_buffer_offset, hip_stream, rocm_used, copy_on_stream));
+        buffer + output_buffer_offset, cuda_stream, cuda_used, copy_on_stream));
 
     output_buffer_offset += input_buffer_byte_size;
   }
@@ -254,11 +254,11 @@ ReadInputTensor(
     TRITONBACKEND_Request* request, const std::string& input_name, char* buffer,
     size_t* buffer_byte_size, const char* host_policy_name)
 {
-  bool rocm_used;
+  bool cuda_used;
   return ReadInputTensor(
       request, input_name, buffer, buffer_byte_size,
       TRITONSERVER_MEMORY_CPU /* memory_type */, 0 /* memory_type_id */,
-      0 /* hip_stream */, &rocm_used);
+      0 /* cuda_stream */, &cuda_used);
 }
 
 TRITONSERVER_Error*
@@ -661,10 +661,10 @@ CopyBuffer(
     const int64_t src_memory_type_id,
     const TRITONSERVER_MemoryType dst_memory_type,
     const int64_t dst_memory_type_id, const size_t byte_size, const void* src,
-    void* dst, hipStream_t hip_stream, bool* rocm_used,
+    void* dst, cudaStream_t cuda_stream, bool* cuda_used,
     const bool copy_on_stream)
 {
-  *rocm_used = false;
+  *cuda_used = false;
 
   if (byte_size > 0) {
     if (src == nullptr) {
@@ -687,17 +687,17 @@ CopyBuffer(
   }
 
 
-  // For ROCM memcpy, if copy_on_stream is false, all host to host copy will be
+  // For CUDA memcpy, if copy_on_stream is false, all host to host copy will be
   // blocked in respect to the host, so use memcpy() directly. In this case,
   // need to be careful on whether the src buffer is valid.
   if ((src_memory_type != TRITONSERVER_MEMORY_GPU) &&
       (dst_memory_type != TRITONSERVER_MEMORY_GPU)) {
-#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
+#ifdef TRITON_ENABLE_GPU
     if (copy_on_stream) {
       auto params = new CopyParams(dst, src, byte_size);
-      hipLaunchHostFunc(
-          hip_stream, MemcpyHost, reinterpret_cast<void*>(params));
-      *rocm_used = true;
+      cudaLaunchHostFunc(
+          cuda_stream, MemcpyHost, reinterpret_cast<void*>(params));
+      *cuda_used = true;
     } else {
       memcpy(dst, src, byte_size);
     }
@@ -705,32 +705,33 @@ CopyBuffer(
     memcpy(dst, src, byte_size);
 #endif  // TRITON_ENABLE_GPU
   } else {
-#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
-    auto copy_kind = hipMemcpyDeviceToDevice;
+#ifdef TRITON_ENABLE_GPU
+    // [TODO] use cudaMemcpyDefault if UVM is supported for the device
+    auto copy_kind = cudaMemcpyDeviceToDevice;
     if (src_memory_type != TRITONSERVER_MEMORY_GPU) {
-      copy_kind = hipMemcpyHostToDevice;
+      copy_kind = cudaMemcpyHostToDevice;
     } else if (dst_memory_type != TRITONSERVER_MEMORY_GPU) {
-      copy_kind = hipMemcpyDeviceToHost;
+      copy_kind = cudaMemcpyDeviceToHost;
     }
 
     if ((src_memory_type_id != dst_memory_type_id) &&
-        (copy_kind == hipMemcpyDeviceToDevice)) {
-      RETURN_IF_ROCM_ERROR(
-          hipMemcpyPeerAsync(
+        (copy_kind == cudaMemcpyDeviceToDevice)) {
+      RETURN_IF_CUDA_ERROR(
+          cudaMemcpyPeerAsync(
               dst, dst_memory_type_id, src, src_memory_type_id, byte_size,
-              hip_stream),
-          TRITONSERVER_ERROR_INTERNAL, msg + ": failed to perform ROCM copy");
+              cuda_stream),
+          TRITONSERVER_ERROR_INTERNAL, msg + ": failed to perform CUDA copy");
     } else {
-      RETURN_IF_ROCM_ERROR(
-          hipMemcpyAsync(dst, src, byte_size, copy_kind, hip_stream),
-          TRITONSERVER_ERROR_INTERNAL, msg + ": failed to perform ROCM copy");
+      RETURN_IF_CUDA_ERROR(
+          cudaMemcpyAsync(dst, src, byte_size, copy_kind, cuda_stream),
+          TRITONSERVER_ERROR_INTERNAL, msg + ": failed to perform CUDA copy");
     }
 
-    *rocm_used = true;
+    *cuda_used = true;
 #else
     return TRITONSERVER_ErrorNew(
         TRITONSERVER_ERROR_INTERNAL,
-        std::string(msg + ": try to use ROCM copy while GPU is not supported")
+        std::string(msg + ": try to use CUDA copy while GPU is not supported")
             .c_str());
 #endif  // TRITON_ENABLE_GPU
   }
@@ -894,38 +895,38 @@ ModelPaths(
 }
 
 TRITONSERVER_Error*
-CreateRocmStream(
-    const int device_id, const int rocm_stream_priority, hipStream_t* stream)
+CreateCudaStream(
+    const int device_id, const int cuda_stream_priority, cudaStream_t* stream)
 {
   *stream = nullptr;
 
-#if defined(TRITON_ENABLE_GPU) || defined(TRITON_ENABLE_ROCM)
+#ifdef TRITON_ENABLE_GPU
   // Make sure that correct device is set before creating stream and
   // then restore the device to what was set by the caller.
   int current_device;
-  auto cuerr = hipGetDevice(&current_device);
+  auto cuerr = cudaGetDevice(&current_device);
   bool overridden = false;
-  if (cuerr == hipSuccess) {
+  if (cuerr == cudaSuccess) {
     overridden = (current_device != device_id);
     if (overridden) {
-      cuerr = hipSetDevice(device_id);
+      cuerr = cudaSetDevice(device_id);
     }
   }
 
-  if (cuerr == hipSuccess) {
-    cuerr = hipStreamCreateWithPriority(
-        stream, hipStreamDefault, rocm_stream_priority);
+  if (cuerr == cudaSuccess) {
+    cuerr = cudaStreamCreateWithPriority(
+        stream, cudaStreamDefault, cuda_stream_priority);
   }
 
   if (overridden) {
-    hipSetDevice(current_device);
+    cudaSetDevice(current_device);
   }
 
-  if (cuerr != hipSuccess) {
+  if (cuerr != cudaSuccess) {
     *stream = nullptr;
     return TRITONSERVER_ErrorNew(
         TRITONSERVER_ERROR_INTERNAL,
-        (std::string("unable to create stream: ") + hipGetErrorString(cuerr))
+        (std::string("unable to create stream: ") + cudaGetErrorString(cuerr))
             .c_str());
   }
 #endif  // TRITON_ENABLE_GPU

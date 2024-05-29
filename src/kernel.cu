@@ -24,7 +24,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <hip/hip_runtime.h>
+#include <cuda.h>
 
 #include "kernel.h"
 
@@ -64,16 +64,16 @@ __launch_bounds__(THREADBLOCK_SIZE) __global__ void TritonGatherKernel(
 extern "C" {
 #endif
 
-hipError_t
+cudaError_t
 RunGatherKernel(
     const int8_t** input_ptr_buffer, const size_t* byte_size_buffer,
     const size_t* byte_size_offset_buffer, int8_t* output_buffer,
-    size_t request_count, hipStream_t stream)
+    size_t request_count, cudaStream_t stream)
 {
   TritonGatherKernel<<<request_count, THREADBLOCK_SIZE, 0, stream>>>(
       input_ptr_buffer, byte_size_buffer, byte_size_offset_buffer,
       output_buffer);
-  return hipGetLastError();
+  return cudaGetLastError();
 }
 
 #ifdef __cplusplus
