@@ -34,7 +34,6 @@ project(tritonbackend LANGUAGES C CXX)
 option(TRITON_ENABLE_GPU "Enable GPU support in backend utilities" ON)
 option(TRITON_ENABLE_MALI_GPU "Enable Arm MALI GPU support in backend utilities" OFF)
 option(TRITON_ENABLE_ROCM "Enable AMD GPU support in backend utilities" OFF)
-option(TRITON_ENABLE_MIGRAPHX "Enable AMD GPU support with MIGraphX in backend utilities" OFF)
 option(TRITON_ENABLE_STATS "Include statistics collections in backend utilities" ON)
 # Default OFF unless backend explicitly request to use provided implementation
 option(TRITON_ENABLE_MEMORY_TRACKER "Include device memory tracker in backend utilities" OFF)
@@ -43,7 +42,7 @@ set(TRITON_COMMON_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/
 set(TRITON_CORE_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/core repo")
 
 # Brian
-if(TRITON_ENABLE_ROCM OR TRITON_ENABLE_MIGRAPHX)
+if(TRITON_ENABLE_ROCM)
   include_directories(/opt/rocm/include)
 endif()
 
@@ -166,27 +165,6 @@ if(${TRITON_ENABLE_ROCM})
   file(GLOB rocm_cmake_components ${TRITON_ROCM_HOME}/lib/cmake/*)
   list(APPEND CMAKE_PREFIX_PATH ${rocm_cmake_components})
 
-  # replicate strategy used by pytorch to get ROCM_VERSION
-  file(READ "${TRITON_ROCM_HOME}/.info/version-dev" ROCM_VERSION_DEV_RAW)
-  string(REGEX MATCH "^([0-9]+)\.([0-9]+)\.([0-9]+)-.*$" ROCM_VERSION_DEV_MATCH ${ROCM_VERSION_DEV_RAW})
-  if (ROCM_VERSION_DEV_MATCH)
-    set(ROCM_VERSION_DEV_MAJOR ${CMAKE_MATCH_1})
-    set(ROCM_VERSION_DEV_MINOR ${CMAKE_MATCH_2})
-    set(ROCM_VERSION_DEV_PATCH ${CMAKE_MATCH_3})
-    set(ROCM_VERSION_DEV "${ROCM_VERSION_DEV_MAJOR}.${ROCM_VERSION_DEV_MINOR}.${ROCM_VERSION_DEV_PATCH}")
-    math(EXPR ROCM_VERSION_DEV_INT "(${ROCM_VERSION_DEV_MAJOR}*10000) + (${ROCM_VERSION_DEV_MINOR}*100) + ${ROCM_VERSION_DEV_PATCH}")
-  endif()
-  message("\n***** ROCm version from ${TRITON_ROCM_HOME}/.info/version-dev ****\n")
-  message("ROCM_VERSION_DEV: ${ROCM_VERSION_DEV}")
-  message("ROCM_VERSION_DEV_MAJOR: ${ROCM_VERSION_DEV_MAJOR}")
-  message("ROCM_VERSION_DEV_MINOR: ${ROCM_VERSION_DEV_MINOR}")
-  message("ROCM_VERSION_DEV_PATCH: ${ROCM_VERSION_DEV_PATCH}")
-  message("ROCM_VERSION_DEV_INT:   ${ROCM_VERSION_DEV_INT}")
-  message("\n***** HIP LANGUAGE CONFIG INFO ****\n")
-  message("CMAKE_HIP_COMPILER:      ${CMAKE_HIP_COMPILER}")
-  message("CMAKE_HIP_ARCHITECTURES: ${CMAKE_HIP_ARCHITECTURES}")
-  message("CMAKE_HIP_FLAGS:         ${CMAKE_HIP_FLAGS}")
-
   if (NOT TRITON_HIPIFY_PERL)
     find_path(HIPIFY_PERL_PATH
       NAMES hipify-perl
@@ -226,13 +204,11 @@ add_library(
 )
 
 if(${TRITON_ENABLE_ROCM})
-  set(INCLUDE_PATH "${CMAKE_CURRENT_BINARY_DIR}/amdgpu/include")
-  message("*** Include path for ROCM files: ${INCLUDE_PATH}")
   target_include_directories(
     triton-backend-utils
     PUBLIC
       $<INSTALL_INTERFACE:include>
-      $<BUILD_INTERFACE:${INCLUDE_PATH}>
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/amdgpu/include>
     PRIVATE
       ${CMAKE_CURRENT_BINARY_DIR}/amdgpu/src
   )
@@ -378,12 +354,20 @@ if(${TRITON_ENABLE_ROCM})
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
-endif() # TRITON_ENABLE_GPU
+endif() # TRITON_ENABLE_ROCM
 
-install(
-  DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/amdgpu/include
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+
+if(${TRITON_ENABLE_ROCM})
+  install(
+    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/amdgpu/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+else()
+  install(
+    DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+endif() # TRITON_ENABLE_ROCM
 
 install(
   EXPORT

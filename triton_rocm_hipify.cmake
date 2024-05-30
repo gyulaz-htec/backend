@@ -49,13 +49,11 @@ message(STATUS "Project Root ${REPO_ROOT} ")
       COMMENT WARNING "Hipify: ${cuda_f_rel} -> amdgpu/${rocm_f_rel}"
       )
 
-    message("*** File output for ${f}: ${f_out}")
     if(f MATCHES "kernel\\..*")
       list(APPEND generated_cu_files ${f_out})
       if(f MATCHES ".*\\.h")
         list(APPEND generated_cc_files ${f_out})
       endif()
-    elseif(f MATCHES ".*examples.*")
     # exclude device_memory_tracker.cc because of build issues
     elseif(f MATCHES ".*device_memory_tracker\\.cc")
     else()
@@ -64,8 +62,6 @@ message(STATUS "Project Root ${REPO_ROOT} ")
 
   endforeach()
 
-  message ("*** generated_cu_files: ${generated_cu_files}")
-  message ("*** generated_cc_files: ${generated_cc_files}")
   set_source_files_properties(${generated_cc_files} PROPERTIES GENERATED TRUE)
   set_source_files_properties(${generated_cu_files} PROPERTIES GENERATED TRUE)
   auto_set_source_files_hip_language(${generated_cu_files})
